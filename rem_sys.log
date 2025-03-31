@@ -1,0 +1,7 @@
+/file/set-tui-version "24.1"
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame7(View)*Table1*Table3(Display)*PushButton1(Views)")
+(cx-gui-do cx-set-list-selections "Views*Table4*List1(Mirror Planes)" '())
+(cx-gui-do cx-activate-item "Views*Table4*List1(Mirror Planes)")
+(cx-gui-do cx-activate-item "Views*PanelButtons*PushButton1(Apply)")
+(cx-gui-do cx-activate-item "Views*PanelButtons*PushButton2(Close)")
+(cx-gui-do cx-activate-item "MenuBar*WriteSubMenu*Stop Journal")
