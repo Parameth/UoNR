@@ -1,5 +1,15 @@
-sim_name = "FCS5_test"
+sim_name = "FCS5_con_test"
 mesh_file = "FCSMRF5.msh"
+
+
+#add status updates as a text file for data and time of each process, find time taken for each process
+#add seperate file for all HPC functions to declutter
+#use for loops to declutter for report defs and report files + plots
+#declutter all code after first fully sucessful run
+#add proper error messages
+#evaluate all lift+drag force over each components (named selection)
+#add aero balance calcuator
+#put all variables at the start of the script for ease of access
 
 #---------------------------------------------------------------------------------------------
 import os
@@ -9,14 +19,16 @@ import time
 import re
 from tqdm import tqdm
 import ansys.fluent.core as pyfluent
+import FCS_run_MRF_HPC_func as HPCfunc
 
 start_time = time.time()
 
-velocity = 13.5
-front_mrf_origin = [0,-0.6448704,0.237]
-rear_mrf_origin = [-1.559238,-0.6448704,237]
-mrf_omega = 57.45
-mrf_axis_direction = [0,1,0]
+# velocity = 13.5
+# front_mrf_origin = [0,-0.6448704,0.237]
+# rear_mrf_origin = [-1.559238,-0.6448704,237]
+# mrf_omega = 57.45
+# mrf_axis_direction = [0,1,0]
+
 
 def run_fluent():
     fluent = pyfluent.launch_fluent(
@@ -32,6 +44,27 @@ def run_fluent():
 
     surfaces = fluent.results.surfaces
     graphics = fluent.results.graphics
+
+    interface = fluent.setup.boundary_conditions.interface.get_object_names()
+    interface_edit = []
+
+    for i in interface:
+        test = bool(re.search("wheel", i))
+        if test == True:
+            test = i
+            interface_edit.append(test)
+        else:
+            interface.pop(interface.index(i))
+
+    for i in interface:
+        fluent.setup.boundary_conditions.interface[i]
+        name_new = HPCfunc.remove_digits(i)
+        fluent.setup.boundary_conditions.interface[i](name = name_new)
+
+    # internal_TEST = fluent.setup.boundary_conditions.interface.get_object_names()
+    # f = open("{}-status.txt".format(sim_name), "w")
+    # f.write("Time: Part 3 complete \n list: {l}".format(l = internal_TEST))
+    # f.close
 
     inlet = fluent.setup.boundary_conditions.velocity_inlet["velocity_inlet"]
     inlet.momentum.velocity.value = 13.5
@@ -56,8 +89,9 @@ def run_fluent():
     rear_mrf.reference_frame(mrf_omega = 57.45)
     rear_mrf.reference_frame(reference_frame_axis_direction = [0,1,0])
 
-    fluent.solution.report_definitions.lift["lift"] = {}
-    lift = fluent.solution.report_definitions.lift["lift"]
+    fluent.solution.report_definitions.lift["lift-force"] = {}
+    lift = fluent.solution.report_definitions.lift["lift-force"]
+    lift(report_output_type = "Lift Force")
     lift.zones = [
         "front_wing",
         "rear_wing",
@@ -70,8 +104,9 @@ def run_fluent():
     lift(average_over = 30)
     lift(retain_instantaneous_values = True)
 
-    fluent.solution.report_definitions.drag["drag"] = {}
-    drag = fluent.solution.report_definitions.drag["drag"]
+    fluent.solution.report_definitions.drag["drag-force"] = {}
+    drag = fluent.solution.report_definitions.drag["drag-force"]
+    drag(report_output_type = "Drag Force")
     drag.zones = [
         "front_wing",
         "rear_wing",
@@ -99,7 +134,7 @@ def run_fluent():
     side_force(retain_instantaneous_values = True)
 
     fluent.solution.report_definitions.flux["mfr"] = {}
-    mfr = fluent.solution.report_definitions.force["mfr"]
+    mfr = fluent.solution.report_definitions.flux["mfr"]
     mfr.boundaries = [
         "velocity_inlet",
         "pressure_outlet"
@@ -112,19 +147,19 @@ def run_fluent():
     fluent.solution.monitor.report_plots["mfr"](report_defs = "mfr")
     fluent.solution.monitor.report_plots["mfr"](print = True)
 
-    fluent.solution.monitor.report_files.create("lift")
-    fluent.solution.monitor.report_files["lift"](report_defs = "lift")
-    fluent.solution.monitor.report_files["lift"](print = True)
-    fluent.solution.monitor.report_plots.create("lift")
-    fluent.solution.monitor.report_plots["lift"](report_defs = "lift")
-    fluent.solution.monitor.report_plots["lift"](print = True)
+    fluent.solution.monitor.report_files.create("lift-force")
+    fluent.solution.monitor.report_files["lift-force"](report_defs = "lift-force")
+    fluent.solution.monitor.report_files["lift-force"](print = True)
+    fluent.solution.monitor.report_plots.create("lift-force")
+    fluent.solution.monitor.report_plots["lift-force"](report_defs = "lift-force")
+    fluent.solution.monitor.report_plots["lift-force"](print = True)
 
-    fluent.solution.monitor.report_files.create("drag")
-    fluent.solution.monitor.report_files["drag"](report_defs = "drag")
-    fluent.solution.monitor.report_files["drag"](print = True)
-    fluent.solution.monitor.report_plots.create("drag")
-    fluent.solution.monitor.report_plots["drag"](report_defs = "drag")
-    fluent.solution.monitor.report_plots["drag"](print = True)
+    fluent.solution.monitor.report_files.create("drag-force")
+    fluent.solution.monitor.report_files["drag-force"](report_defs = "drag-force")
+    fluent.solution.monitor.report_files["drag-force"](print = True)
+    fluent.solution.monitor.report_plots.create("drag-force")
+    fluent.solution.monitor.report_plots["drag-force"](report_defs = "drag-force")
+    fluent.solution.monitor.report_plots["drag-force"](print = True)
 
     fluent.solution.monitor.report_files.create("side-force")
     fluent.solution.monitor.report_files["side-force"](report_defs = "side-force")
@@ -133,8 +168,34 @@ def run_fluent():
     fluent.solution.monitor.report_plots["side-force"](report_defs = "side-force")
     fluent.solution.monitor.report_plots["side-force"](print = True)
 
+    fluent.solution.monitor.residual.equations["continuity"].check_convergence = False
+
+    fluent.solution.monitor.convergence_conditions.convergence_reports.create("lift-force")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["lift-force"](report_defs = "lift-force")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["lift-force"](stop_criterion = 0.05) #5% uncertinaity
+    fluent.solution.monitor.convergence_conditions.convergence_reports["lift-force"](initial_values_to_ignore = 300)
+    fluent.solution.monitor.convergence_conditions.convergence_reports["lift-force"](previous_values_to_consider = 20)
+
+    fluent.solution.monitor.convergence_conditions.convergence_reports.create("drag-force")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["drag-force"](report_defs = "drag-force")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["drag-force"](stop_criterion = 0.025) #2.5% uncertinaity
+    fluent.solution.monitor.convergence_conditions.convergence_reports["drag-force"](initial_values_to_ignore = 300)
+    fluent.solution.monitor.convergence_conditions.convergence_reports["drag-force"](previous_values_to_consider = 20)
+
+    fluent.solution.monitor.convergence_conditions.convergence_reports.create("side-force")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["side-force"](report_defs = "side-force")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["side-force"](stop_criterion = 0.025) #2.5% uncertinaity
+    fluent.solution.monitor.convergence_conditions.convergence_reports["side-force"](initial_values_to_ignore = 300)
+    fluent.solution.monitor.convergence_conditions.convergence_reports["side-force"](previous_values_to_consider = 20)
+
+    fluent.solution.monitor.convergence_conditions.convergence_reports.create("mfr")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["mfr"](report_defs = "mfr")
+    fluent.solution.monitor.convergence_conditions.convergence_reports["mfr"](stop_criterion = 0.5)
+    fluent.solution.monitor.convergence_conditions.convergence_reports["mfr"](initial_values_to_ignore = 300)
+    fluent.solution.monitor.convergence_conditions.convergence_reports["mfr"](previous_values_to_consider = 1)
+
     fluent.solution.initialization.hybrid_initialize()
-    fluent.solution.run_calculation.iterate(iter_count = 1)
+    fluent.solution.run_calculation.iterate(iter_count = 1000)
 
     fluent.file.write(file_type="case", file_name="{}.cas".format(sim_name))
     fluent.file.write(file_type="data", file_name="{}.dat".format(sim_name))
@@ -142,16 +203,19 @@ def run_fluent():
     fluent.solution.monitor.residual.plot()
     graphics.picture.save_picture(file_name = "{}-residuals-plot.png".format(sim_name))
 
-    fluent.solution.monitor.report_plots["lift"].plot()
-    graphics.picture.save_picture(file_name = "{}-lift-plot.png".format(sim_name))
+    fluent.solution.monitor.report_plots["lift-force"].plot()
+    graphics.picture.save_picture(file_name = "{}-lift-force-plot.png".format(sim_name))
 
-    fluent.solution.monitor.report_plots["drag"].plot()
-    graphics.picture.save_picture(file_name = "{}-drag-plot.png".format(sim_name))
+    fluent.solution.monitor.report_plots["drag-force"].plot()
+    graphics.picture.save_picture(file_name = "{}-drag-force-plot.png".format(sim_name))
 
     fluent.solution.monitor.report_plots["side-force"].plot()
     graphics.picture.save_picture(file_name = "{}-side-force-plot.png".format(sim_name))
 
-    fluent.solution.report_definitions.compute(report_defs=["lift", "drag", "side-force", "mfr"])
+    fluent.solution.monitor.report_plots["mfr"].plot()
+    graphics.picture.save_picture(file_name = "{}-mfr-plot.png".format(sim_name))
+
+    fluent.solution.report_definitions.compute(report_defs=["lift-force", "drag-force", "side-force", "mfr"])
 
     def folders():
         main_folder = './{}'.format(sim_name)
@@ -177,10 +241,10 @@ def run_fluent():
     resolution_y    = 1080          #pixels
     fps             = 15            #frames per second
 
-    num_frames_x    = 365          #number for frames in the x-direction (i) for the sweep animation (730)(365)
-    num_frames_y    = 175          #number for frames in the y-direction (j) for the sweep animation (150)(75)
-    num_frames_z    = 124           #number for frames in the z-direction (k) for the sweep animation (248)(124)
-    num_sweep_frames = 180         #number for frames for revolving (s) for the revolve animation (360))(180)
+    num_frames_x    = 73          #number for frames in the x-direction (i) for the sweep animation (730)(365)
+    num_frames_y    = 15          #number for frames in the y-direction (j) for the sweep animation (150)(75)
+    num_frames_z    = 25          #number for frames in the z-direction (k) for the sweep animation (248)(124)
+    num_sweep_frames = 36         #number for frames for revolving (s) for the revolve animation (360))(180)
 
     ti = "turb-intensity"
     cp = "pressure-coefficient"
@@ -215,10 +279,10 @@ def run_fluent():
             graphics.picture.use_window_resolution = False
         graphics.picture.x_resolution = resolution_x 
         graphics.picture.y_resolution = resolution_y
-        fluent.tui.preferences.graphics.graphics_effects.grid_plane_enabled("no")
-        fluent.tui.preferences.graphics.graphics_effects.reflections_enabled("no")
-        fluent.tui.preferences.graphics.graphics_effects.shadow_map_enabled("no")
-        fluent.tui.preferences.graphics.graphics_effects.simple_shadows_enabled("no")
+        fluent.tui.preferences.graphics.graphics_effects.grid_plane_enabled = "no"
+        fluent.tui.preferences.graphics.graphics_effects.reflections_enabled = "no"
+        fluent.tui.preferences.graphics.graphics_effects.shadow_map_enabled = "no"
+        fluent.tui.preferences.graphics.graphics_effects.simple_shadows_enabled = "no"
         graphics.views.camera.projection(type = "orthographic")
         fluent.tui.display.set.mirror_zones("symmetry")
         fluent.setup.reference_values.velocity.set_state(13.5)
@@ -270,8 +334,8 @@ def run_fluent():
             "rear_wheel",
             "rear_wing",
             "side_wing",
-            "front_wheel-contact_region_7-src",
-            "rear_wheel-contact_region_6-src"
+            "front_wheel-contact_region_-src",
+            "rear_wheel-contact_region_-src"
         ]
 
     def x_sweep(i, r):
@@ -369,7 +433,7 @@ def run_fluent():
 
         time.sleep(3)
 
-        fluent.file.read_journal(file_name_list = ["rem_sys.log"])
+        fluent.tui.display.set.mirror_zones("()")
         for j in tqdm(nums_y, desc = "y-contours"):
             y_sweep(j, r)
         print("Y is Complete")
@@ -695,6 +759,15 @@ def run_fluent():
 
     for file in os.listdir(source_dir):
         if file.endswith(".avi"):
+            
+            source_path = os.path.join(source_dir, file)
+            target_path = os.path.join(destination_dir, file)
+            shutil.move(source_path, target_path)
+
+    destination_dir = os.path.join(source_dir, sim_name, "results")
+
+    for file in os.listdir(source_dir):
+        if file.endswith(".out"):
             
             source_path = os.path.join(source_dir, file)
             target_path = os.path.join(destination_dir, file)
