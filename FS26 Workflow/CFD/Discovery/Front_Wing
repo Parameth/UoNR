@@ -8,10 +8,14 @@ File.InsertGeometry(r"INSERT FILE PATH HERE") #<----------------
 
 ################################################################
 
+# Parameters
 inlet = [1000, 750, 725, "inlet"]
 outlet = [-3000, 750, 725, "outlet"]
 ground = [-1000, 750, -50, "ground"]
 symmetry = [-1000, 0, 725, "symmetry"]
+velocity = 13.5 #m/s
+
+################################################################
 
 # Set Sketch Plane
 sectionPlane = Plane.PlaneZX
@@ -90,7 +94,7 @@ Solution.Simulation.SetCurrentSimulation(simulation)
 
 # Apply Flow Inlet 3
 selection = Selection.Create(NamedSelection.GetGroup("inlet"))
-speed = SpeedQuantity.Create(13.5, SpeedUnit.MeterPerSecond)
+speed = SpeedQuantity.Create(velocity, SpeedUnit.MeterPerSecond)
 result = Conditions.Flow.Create(selection, speed, FlowDirection.In)
 
 selection = Selection.Create(NamedSelection.GetGroup("outlet"))
@@ -106,7 +110,7 @@ selection = Selection.Create(NamedSelection.GetGroup("ground"))
 result = Conditions.Wall.Create(selection)
 result.WallSurfaceFriction = WallSurfaceFriction.NoSlip
 result.MotionSpecification = WallMotion.Translating
-result.TranslationalVelocity = VectorQuantityTranslationalSpeed.Create(0, 13.5, 0, SpeedUnit.MeterPerSecond)
+result.TranslationalVelocity = VectorQuantityTranslationalSpeed.Create(0, velocity, 0, SpeedUnit.MeterPerSecond)
 
 # Find Fluid Domain
 Test = List[IDesignBody]()
@@ -147,20 +151,12 @@ result = Results.Monitor.Create(selection1, selection2, resultVariable, resultFu
 result.ResultVectorComponent = Results.ResultVectorComponent.X
 
 # Add monitor
-resultVariable = Results.ResultVariable.FluidForce
-resultFunction = Results.ResultFunction.Integral
-selection1 = Selection.Create(NamedSelection.GetGroup("Wings"))
-selection2 = Selection.Empty()
-result = Results.Monitor.Create(selection1, selection2, resultVariable, resultFunction)
-result.ResultVectorComponent = Results.ResultVectorComponent.Y
+result2 = Results.Monitor.Create(selection1, selection2, resultVariable, resultFunction)
+result2.ResultVectorComponent = Results.ResultVectorComponent.Y
 
 # Add monitor
-resultVariable = Results.ResultVariable.FluidForce
-resultFunction = Results.ResultFunction.Integral
-selection1 = Selection.Create(NamedSelection.GetGroup("Wings"))
-selection2 = Selection.Empty()
-result = Results.Monitor.Create(selection1, selection2, resultVariable, resultFunction)
-result.ResultVectorComponent = Results.ResultVectorComponent.Z
+result3 = Results.Monitor.Create(selection1, selection2, resultVariable, resultFunction)
+result3.ResultVectorComponent = Results.ResultVectorComponent.Z
 
 # Set Surface Friction
 condition = Conditions.Wall.GetByLabel("Non-Slip Wall (default)")
