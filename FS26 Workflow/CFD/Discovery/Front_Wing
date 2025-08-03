@@ -9,13 +9,48 @@ File.InsertGeometry(r"INSERT FILE PATH HERE") #<----------------
 ################################################################
 
 # Parameters
-inlet = [1000, 750, 725, "inlet"]
-outlet = [-3000, 750, 725, "outlet"]
-ground = [-1000, 750, -50, "ground"]
-symmetry = [-1000, 0, 725, "symmetry"]
+inlet = [1000, 750, 750, "inlet"]   
+outlet = [-3000, 750, 750, "outlet"]
+ground = [-1000, 750, 0, "ground"]
+symmetry = [-1000, 0, 750, "symmetry"]
 velocity = 13.5 #m/s
 
 ################################################################
+
+# Create Sketch Cylinder
+result = CylinderBody.Create(Point.Create(MM(-490), MM(516.9), MM(265)), Point.Create(MM(-490), MM(736.9), MM(265)), Point.Create(MM(-230), MM(736.9), MM(265)), ExtrudeType.None)
+# EndBlock
+
+# Create Sketch Cylinder
+result = CylinderBody.Create(Point.Create(MM(-490), MM(516.9), MM(265)), Point.Create(MM(-490), MM(676.9), MM(265)), Point.Create(MM(-340), MM(676.9), MM(265)), ExtrudeType.ForceIndependent)
+# EndBlock
+
+# Solidify Sketch
+mode = InteractionMode.Solid
+result = ViewHelper.SetViewMode(mode, None)
+# EndBlock
+
+# Intersecting bodies
+targets = BodySelection.Create(GetRootPart().Bodies[0])
+tools = BodySelection.Create(GetRootPart().Bodies[1])
+options = MakeSolidsOptions()
+result = Combine.Intersect(targets, tools, options)
+# EndBlock
+
+# Delete Objects
+selection = BodySelection.Create(GetRootPart().Bodies[2])
+result = Combine.RemoveRegions(selection)
+# EndBlock
+
+# Delete Selection
+selection = BodySelection.Create(GetRootPart().Bodies[1])
+result = Delete.Execute(selection)
+# EndBlock
+
+# Rename 'Solid' to 'Wheel'
+selection = BodySelection.Create(GetRootPart().Bodies[0])
+result = RenameObject.Execute(selection,"Wheel")
+# EndBlock
 
 # Set Sketch Plane
 sectionPlane = Plane.PlaneZX
@@ -24,7 +59,7 @@ result = ViewHelper.SetSketchPlane(sectionPlane, None)
 # Sketch Rectangle
 point1 = Point2D.Create(MM(1500),MM(1000))
 point2 = Point2D.Create(MM(1500),MM(-3000))
-point3 = Point2D.Create(MM(-50),MM(-3000))
+point3 = Point2D.Create(MM(0),MM(-3000))
 result = SketchRectangle.Create(point1, point2, point3)
 
 # Solidify Sketch
@@ -32,16 +67,26 @@ mode = InteractionMode.Solid
 result = ViewHelper.SetViewMode(mode, None)
 
 # Extrude 1 Face
-selection = FaceSelection.Create(GetRootPart().Bodies[0].Faces[0])
+selection = FaceSelection.Create(GetRootPart().Bodies[1].Faces[0])
 options = ExtrudeFaceOptions()
-options.ExtrudeType = ExtrudeType.Add
+options.ExtrudeType = ExtrudeType.ForceIndependent
 result = ExtrudeFaces.Execute(selection, MM(1500), options)
+
+# Intersecting bodies
+targets = BodySelection.Create(GetRootPart().Bodies[1])
+tools = BodySelection.Create(GetRootPart().Bodies[0])
+options = MakeSolidsOptions()
+options.KeepCutter = False
+result = Combine.Intersect(targets, tools, options)
+# EndBlock
 
 # Intersecting bodies
 targets = BodySelection.Create(GetRootPart().Bodies[0])
 tools = Selection.Create(GetRootPart().GetComponents())
 options = MakeSolidsOptions()
+options.KeepCutter = False
 result = Combine.Intersect(targets, tools, options)
+# EndBlock
 
 def findface_X(location_tuple):
     xx, yy, zz, name = location_tuple
@@ -92,11 +137,12 @@ definefaces()
 simulation=Solution.Simulation.Create()
 Solution.Simulation.SetCurrentSimulation(simulation)
 
-# Apply Flow Inlet 3
+# Apply Flow
 selection = Selection.Create(NamedSelection.GetGroup("inlet"))
 speed = SpeedQuantity.Create(velocity, SpeedUnit.MeterPerSecond)
 result = Conditions.Flow.Create(selection, speed, FlowDirection.In)
 
+# Apply Flow
 selection = Selection.Create(NamedSelection.GetGroup("outlet"))
 pressure = PressureQuantity.Create(0, PressureUnit.Pascal)
 result = Conditions.Flow.Create(selection, pressure, FlowDirection.Out)
@@ -131,9 +177,22 @@ result = NamedSelection.Create(primarySelection, secondarySelection)
 result = NamedSelection.Rename("Selection1", "Fluid")
 
 # Create Named Selection Group
-primarySelection = Selection.CreateByGroups("Fluid").ConvertToFaces().FilterFaces().FilterByArea(0, 2)
+selection = Selection.CreateByGroups("Fluid").ConvertToFaces().FilterFaces().FilterByArea(0.35, 0.36)
+selection.SetActive()
+# Create Named Selection Group
+primarySelection = PowerSelection.Faces.Coaxial(Selection.GetActive())
+secondarySelection = Selection.Empty()
+result = NamedSelection.Create(primarySelection, secondarySelection, "Wheel")
+# EndBlock
+
+# Create Named Selection Group
+primarySelection = Selection.CreateByGroups("Fluid").ConvertToFaces().FilterFaces().FilterByArea(0, 0.3)
 secondarySelection = Selection.Empty()
 result = NamedSelection.Create(primarySelection, secondarySelection, "Wings")
+
+# Repair Overlapping Named Selections
+result = NamedSelection.RemoveOverlaps()
+# EndBlock
 
 # Change Stage
 Solution.Stages.SetStage("RefineStage")
@@ -158,6 +217,15 @@ result2.ResultVectorComponent = Results.ResultVectorComponent.Y
 result3 = Results.Monitor.Create(selection1, selection2, resultVariable, resultFunction)
 result3.ResultVectorComponent = Results.ResultVectorComponent.Z
 
+# Apply Rotating Wall 2
+selection = Selection.Create(NamedSelection.GetGroup("Wheel"))
+result = Conditions.Wall.Create(selection)
+result.WallThermalSpecification = WallThermalSpecification.Insulated
+result.WallSurfaceFriction = WallSurfaceFriction.NoSlip
+result.MotionSpecification = WallMotion.Rotating
+result.RotationalVelocity = VectorQuantityRotationalSpeed.Create(0, 57.45, 0, RotationalSpeedUnit.RevolutionPerMinute)
+# EndBlock
+
 # Set Surface Friction
 condition = Conditions.Wall.GetByLabel("Non-Slip Wall (default)")
 condition.WallSurfaceFriction = WallSurfaceFriction.FreeSlip
@@ -169,6 +237,9 @@ materialAssignment.Material = material
 
 # Set Fidelity Value
 Solution.Stages.SetFidelity(0.04)
+
+# Start Solver in Refine Mode 
+Solution.Solver.StartRefine()
 
 # Start Solver in Refine Mode 
 Solution.Solver.StartRefine()
