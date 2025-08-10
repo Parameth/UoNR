@@ -1,7 +1,7 @@
 Analysis_FrontFix = Model.AddStaticStructuralAnalysis()
 Analysis_RearFix = Model.AddStaticStructuralAnalysis()
 
-import_path = r"P:\\Formula Student\\FS26\\FEA  Example\\Chassis_Tubes_Beams.scdoc"
+import_path = r"INSERT FILE PATH HERE" #<-----------
 geomImport = Model.GeometryImportGroup.AddGeometryImport()
 geomImport.Import(import_path)
 
